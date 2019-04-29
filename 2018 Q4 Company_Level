@@ -1,0 +1,111 @@
+WITH ts_lkup AS (
+SELECT
+  MAX(ffe2.first_ts) AS first_ts,
+  MAX(ffe3.latest_ts) AS latest_ts,
+  CASE
+    WHEN IFNULL(ad.profile_state,ad.prop_state) IN ('HI') THEN 'Pacific/Honolulu'
+    WHEN IFNULL(ad.profile_state,ad.prop_state) IN ('AK') THEN 'America/Anchorage'
+    WHEN IFNULL(ad.profile_state,ad.prop_state) IN ('CA','WA','OR','NV') THEN 'America/Los_Angeles'
+    WHEN IFNULL(ad.profile_state,ad.prop_state) IN ('AZ','UT','MT','NE','ID','NM','CO','WY') THEN 'America/Denver'
+    WHEN IFNULL(ad.profile_state,ad.prop_state) IN ('ND','SD','NE','KS','OK','TX','MN','IA','MO','AR','LA','WI','IL','KY','TN','MS','AL') THEN 'America/Chicago'
+    WHEN IFNULL(ad.profile_state,ad.prop_state) IN ('MI','IN','GA','FL','SC','NC','OH','WV','VA','PA','NY','VT','ME','NH','MA','RI','CT','NJ','DE','MD','DC') THEN 'America/New_York'
+    WHEN ad.profile_state IS NULL THEN 'America/Los_Angeles'
+    ELSE 'America/Los_Angeles'
+  END AS time_zone_lookup,
+  IFNULL(ad.profile_state,ad.prop_state) AS profile_state,
+  ffe.application_uuid_value,
+  CASE WHEN dlc.origination_loan_amount IS NULL THEN IFNULL(lo.original_loan_balance,15000) ELSE dlc.origination_loan_amount END AS application_amount,
+  CASE WHEN ad.application_reason = 'HOME_IMPROVEMENT' THEN 'HOME_IMPROVEMENT' ELSE 'OTHER' END AS app_reason,
+  IFNULL(ad.uw_first_lien,FALSE) AS uw_first_lien,
+  lo.origination_fee,
+  pre_apr.promo_code
+FROM
+  reporting.figure_funnel_event ffe
+LEFT JOIN
+  (SELECT application_uuid_value AS id, min(stage_entry_ts) AS first_ts FROM `reporting.figure_funnel_event` WHERE stage = 'App Start' GROUP BY 1) ffe2 ON ffe.application_uuid_value = ffe2.id
+LEFT JOIN
+  (SELECT application_uuid_value AS id, max(stage_entry_ts) AS latest_ts FROM `reporting.figure_funnel_event` WHERE stage_num != 11 GROUP BY 1) ffe3 ON ffe.application_uuid_value = ffe3.id
+LEFT JOIN
+  (SELECT la.application_uuid_value AS id, promo_code FROM reporting.lkup_application la WHERE promo_code IS NOT NULL AND promo_code != '') pre_apr ON ffe.application_uuid_value = pre_apr.id
+JOIN
+  reporting.application_details ad ON ffe.application_uuid_value = ad.application_uuid_value
+JOIN
+  reporting.agg_loan_output lo ON ffe.application_uuid_value = lo.application_uuid_value
+LEFT JOIN
+  (SELECT 
+    loan_num,origination_loan_amount,origination_funding_date,MIN(calculation_date) AS first_date_reported 
+  FROM reporting.agg_daily_loan_calc GROUP BY 1,2,3 ORDER BY 3) dlc ON ffe.application_uuid_value = dlc.loan_num
+GROUP BY 3,4,5,6,7,8,9,10
+), 
+-- Converting time and joining some new tables 
+ts_con AS (
+SELECT
+  DATETIME(CAST(first_ts AS TIMESTAMP), time_zone_lookup) AS first_ts_converted,
+  DATETIME(CAST(latest_ts AS TIMESTAMP), time_zone_lookup) AS latest_ts_converted,
+  DATETIME(CAST(ana.ts AS TIMESTAMP), time_zone_lookup) AS ana_ts,
+  DATETIME(CAST(denied.ts AS TIMESTAMP), time_zone_lookup) AS denied_ts,
+  DATETIME(CAST(withdrawn.ts AS TIMESTAMP), time_zone_lookup) AS withdraw_ts,
+  DATETIME(CAST(funded.ts AS TIMESTAMP), time_zone_lookup) AS funded_ts,
+  application_uuid_value,
+  profile_state,
+  application_amount,
+  uw_first_lien,
+  app_reason,
+  promo_code,
+  origination_fee,
+  (application_amount / (1 + origination_fee)) * origination_fee  AS origination_fee_amount,
+FROM
+  ts_lkup ffe
+LEFT JOIN
+  (SELECT fs.application_uuid_value AS id, max(current_stage_entry_ts) AS ts FROM reporting.application_by_latest_funnel_state fs
+   JOIN (SELECT ffe.application_uuid_value FROM reporting.figure_funnel_event ffe WHERE ffe.stage_num BETWEEN 5 AND 10.5 GROUP BY 1) t
+   ON fs.application_uuid_value = t.application_uuid_value
+   WHERE stage_num = 98 
+   GROUP BY 1) ana ON ffe.application_uuid_value = ana.id
+LEFT JOIN
+  (SELECT application_uuid_value AS id, max(stage_entry_ts) AS ts FROM `reporting.figure_funnel_event` WHERE stage_num = 99 GROUP BY 1) denied ON ffe.application_uuid_value = denied.id
+LEFT JOIN
+  (SELECT application_uuid_value AS id, max(stage_entry_ts) AS ts FROM `reporting.figure_funnel_event` WHERE stage_num = 98 GROUP BY 1) withdrawn ON ffe.application_uuid_value = withdrawn.id
+LEFT JOIN
+  (SELECT application_uuid_value AS id, max(stage_entry_ts) AS ts FROM `reporting.figure_funnel_event` WHERE stage_num = 10.5 AND application_uuid_value != 'c6979e91-1ef2-42ed-ab73-2d67e9c4fa84' AND stage_entry_ts < '2019-01-01' GROUP BY 1) funded ON ffe.application_uuid_value = funded.id
+GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14
+), ts_conv AS (
+SELECT * FROM ts_con
+),
+-- Company level calculation for the required fields
+company_level_ownership AS (
+SELECT 
+  '_Company Level' AS profile_state, SUM(CASE WHEN asset_owner_uuid_value IS NULL THEN application_amount ELSE principal_balance END) AS amount, count(*) AS cnt, 
+  CASE
+    WHEN asset_owner_uuid_value = 'deadbeef-face-479b-860c-facefaceface' OR asset_owner_uuid_value IS NULL THEN 'LS010'
+    WHEN asset_owner_uuid_value IN ('33ebc05c-f000-43a3-83e3-8d413d7c8b66','2fe02699-c008-4716-99c5-a4ba2d075fba') THEN 'LS020'
+    WHEN asset_owner_uuid_value = '3e576910-cc97-4f96-8d4a-7e193b3a75f8' THEN 'LS030'
+  END AS ac_type
+FROM
+  ts_conv tc
+LEFT JOIN (SELECT * FROM 
+                  (SELECT
+                     row_number() OVER(PARTITION BY loan_num ORDER BY kafka_timestamp) AS rnk,loan_num, asset_owner_uuid_value, principal_balance
+                   FROM
+                     reporting.agg_daily_loan_calc
+                   WHERE
+                     calculation_ts = '2018-12-31')t 
+                   WHERE rnk = 1) dlc ON tc.application_uuid_value = dlc.loan_num
+WHERE funded_ts IS NOT NULL
+GROUP BY 1,4
+), company_level_delinquency AS (
+SELECT '_Company Level' AS profile_state, SUM(CASE WHEN asset_owner_uuid_value IS NULL THEN application_amount ELSE principal_balance END) AS amount, count(*) AS cnt, 'LS200' AS ac_type FROM ts_conv tc
+LEFT JOIN (SELECT * FROM 
+                  (SELECT
+                     row_number() OVER(PARTITION BY loan_num ORDER BY kafka_timestamp) AS rnk,loan_num, asset_owner_uuid_value, principal_balance
+                   FROM
+                     reporting.agg_daily_loan_calc
+                   WHERE
+                     calculation_ts = '2018-12-31')t 
+                   WHERE rnk = 1) dlc ON tc.application_uuid_value = dlc.loan_num
+WHERE funded_ts IS NOT NULL
+GROUP BY 1,4
+)
+SELECT profile_state, amount, cnt, ac_type FROM company_level_ownership
+UNION ALL
+SELECT profile_state, amount, cnt, ac_type FROM company_level_delinquency
