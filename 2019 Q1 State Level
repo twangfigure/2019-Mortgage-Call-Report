@@ -92,43 +92,41 @@ SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC010
 WHERE first_ts_converted < '2019-01-01 00:00:00' AND latest_ts_converted >= '2019-01-01 00:00:00'
 GROUP BY 1
 UNION ALL
-SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC020' AS ac_type FROM ts_conv WHERE  first_ts_converted >= '2019-01-01 00:00:00'  AND first_ts_converted <= '2019-02-28 23:59:59' GROUP BY 1
+SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC020' AS ac_type FROM ts_conv WHERE  first_ts_converted >= '2019-01-01 00:00:00'  AND first_ts_converted <= '2019-03-31 23:59:59' GROUP BY 1
 UNION ALL
-SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC030' AS ac_type  FROM ts_conv WHERE  (ana_ts >= '2019-01-01 00:00:00'  AND ana_ts <= '2019-02-28 23:59:59') AND (promo_code IS NULL) GROUP BY 1
+SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC030' AS ac_type  FROM ts_conv WHERE  (ana_ts >= '2019-01-01 00:00:00'  AND ana_ts <= '2019-03-31 23:59:59') AND (promo_code IS NULL) GROUP BY 1
 UNION ALL
-SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC040' AS ac_type FROM ts_conv WHERE  (denied_ts >= '2019-01-01 00:00:00'  AND denied_ts <= '2019-02-28 23:59:59') AND (promo_code IS NULL) GROUP BY 1
+SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC040' AS ac_type FROM ts_conv WHERE  (denied_ts >= '2019-01-01 00:00:00'  AND denied_ts <= '2019-03-31 23:59:59') AND (promo_code IS NULL) GROUP BY 1
 UNION ALL
-SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC050' AS ac_type FROM ts_conv WHERE  (withdraw_ts >= '2019-01-01 00:00:00'  AND withdraw_ts <= '2019-02-28 23:59:59') AND ana_ts IS NULL GROUP BY 1
+SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC050' AS ac_type FROM ts_conv WHERE  (withdraw_ts >= '2019-01-01 00:00:00'  AND withdraw_ts <= '2019-03-31 23:59:59') AND ana_ts IS NULL GROUP BY 1
 UNION ALL
-SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC062' AS ac_type FROM ts_conv WHERE  (denied_ts >= '2019-01-01 00:00:00'  AND denied_ts <= '2019-02-28 23:59:59') AND (promo_code IS NOT NULL) GROUP BY 1
+SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC062' AS ac_type FROM ts_conv WHERE  (denied_ts >= '2019-01-01 00:00:00'  AND denied_ts <= '2019-03-31 23:59:59') AND (promo_code IS NOT NULL) GROUP BY 1
 UNION ALL
-SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC064' AS ac_type FROM ts_conv WHERE  (ana_ts >= '2019-01-01 00:00:00'  AND ana_ts <= '2019-02-28 23:59:59') AND (promo_code IS NOT NULL) GROUP BY 1
+SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC064' AS ac_type FROM ts_conv WHERE  (ana_ts >= '2019-01-01 00:00:00'  AND ana_ts <= '2019-03-31 23:59:59') AND (promo_code IS NOT NULL) GROUP BY 1
 UNION ALL
-SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC070' AS ac_type FROM ts_conv WHERE  (funded_ts >= '2019-01-01 00:00:00'  AND funded_ts <= '2019-02-28 23:59:59') GROUP BY 1
+SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC070' AS ac_type FROM ts_conv WHERE  (funded_ts >= '2019-01-01 00:00:00'  AND funded_ts <= '2019-03-31 23:59:59') GROUP BY 1
 UNION ALL
 SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC080' AS ac_type FROM ts_conv 
-WHERE  first_ts_converted <= '2019-02-28 23:59:59' AND (latest_ts_converted >= '2019-02-28 23:59:59' OR (ana_ts IS NULL AND denied_ts IS NULL AND withdraw_ts IS NULL AND funded_ts IS NULL)) GROUP BY 1
+WHERE  first_ts_converted <= '2019-03-31 23:59:59' AND (latest_ts_converted >= '2019-03-31 23:59:59' OR (ana_ts IS NULL AND denied_ts IS NULL AND withdraw_ts IS NULL AND funded_ts IS NULL)) GROUP BY 1
 UNION ALL
-SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, CASE WHEN app_reason = 'HOME_IMPROVEMENT' THEN 'AC310' ELSE 'AC320' END AS ac_type FROM ts_conv WHERE (funded_ts >= '2019-01-01 00:00:00'  AND funded_ts <= '2019-02-28 23:59:59') GROUP BY 1,4
+SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, CASE WHEN app_reason = 'HOME_IMPROVEMENT' THEN 'AC310' ELSE 'AC320' END AS ac_type FROM ts_conv WHERE (funded_ts >= '2019-01-01 00:00:00'  AND funded_ts <= '2019-03-31 23:59:59') GROUP BY 1,4
 UNION ALL
-SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, CASE WHEN uw_first_lien = TRUE THEN 'AC500' ELSE 'AC510' END AS ac_type FROM ts_conv WHERE (funded_ts >= '2019-01-01 00:00:00'  AND funded_ts <= '2019-02-28 23:59:59') GROUP BY 1,4
+SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, CASE WHEN uw_first_lien = TRUE THEN 'AC500' ELSE 'AC510' END AS ac_type FROM ts_conv WHERE (funded_ts >= '2019-01-01 00:00:00'  AND funded_ts <= '2019-03-31 23:59:59') GROUP BY 1,4
 UNION ALL
-SELECT profile_state, SUM(origination_fee_amount) AS amount, count(*) AS cnt, 'AC610' AS ac_type FROM ts_conv WHERE (funded_ts >= '2019-01-01 00:00:00'  AND funded_ts <= '2019-02-28 23:59:59') GROUP BY 1
+SELECT profile_state, SUM(origination_fee_amount) AS amount, count(*) AS cnt, 'AC610' AS ac_type FROM ts_conv WHERE (funded_ts >= '2019-01-01 00:00:00'  AND funded_ts <= '2019-03-31 23:59:59') GROUP BY 1
 UNION ALL
 SELECT profile_state, (SUM(application_amount*origination_fee) + SUM(interest_ytd)) AS amount, count(*) AS cnt, 'AC1100' AS ac_type FROM ts_conv tc
-JOIN (SELECT loan_num, interest_ytd FROM reporting.agg_daily_loan_calc WHERE calculation_ts = '2019-02-28') dlc ON tc.application_uuid_value = dlc.loan_num
-WHERE (funded_ts >= '2019-01-01 00:00:00'  AND funded_ts <= '2019-02-28 23:59:59') GROUP BY 1
+JOIN (SELECT loan_num, interest_ytd FROM reporting.agg_daily_loan_calc WHERE calculation_ts = '2019-03-31') dlc ON tc.application_uuid_value = dlc.loan_num
+WHERE (funded_ts >= '2019-01-01 00:00:00'  AND funded_ts <= '2019-03-31 23:59:59') GROUP BY 1
 UNION ALL
-SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 
-CASE WHEN asset_owner_uuid_value = '3e576910-cc97-4f96-8d4a-7e193b3a75f8' THEN 'AC1210' ELSE 'AC1200' END AS ac_type FROM ts_conv tc
+SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt,'AC1200'AS ac_type FROM ts_conv tc
 LEFT JOIN (SELECT * FROM 
                   (SELECT
                      row_number() OVER(PARTITION BY loan_num ORDER BY kafka_timestamp) AS rnk,loan_num, asset_owner_uuid_value
                    FROM
                      reporting.agg_daily_loan_calc
                    WHERE
-                     calculation_ts = '2019-02-28')t 
+                     calculation_date = '2019-03-31')t 
                    WHERE rnk = 1) dlc ON tc.application_uuid_value = dlc.loan_num
-WHERE (funded_ts >= '2019-01-01 00:00:00'  AND funded_ts <= '2019-02-28 23:59:59') GROUP BY 1,4
-)
+WHERE (funded_ts >= '2019-01-01 00:00:00'  AND funded_ts <= '2019-03-31 23:59:59') GROUP BY 1,4)
 SELECT profile_state, amount, cnt, ac_type FROM state_level
