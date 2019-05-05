@@ -1,0 +1,64 @@
+-- Notes:
+
+-- 1. Company level tab is servicing. So it’s data for everything on our books as of end of quarter
+-- 2. Asset_owner_uuid_value = '3e576910-cc97-4f96-8d4a-7e193b3a75f8' had two transactions with us, the first one happened in 2018 Q4, Figure subservicing for them, the second one happened this 2019 Q1, loan sold but servicing retained. We will need to use the 'LS020' subtract 'LS030' in 2018 Q4 to de-duplicate.
+
+WITH ts_conv AS(SELECT 
+  IFNULL(loan_num,lo.application_uuid_value) AS application_uuid_value,
+  CASE WHEN dlc.origination_loan_amount IS NULL THEN IFNULL(lo.original_loan_balance,15000) ELSE dlc.origination_loan_amount END AS application_amount
+FROM reporting.agg_loan_output lo
+JOIN
+  (SELECT 
+    loan_num,origination_loan_amount,origination_funding_date,MIN(calculation_date) AS first_date_reported 
+  FROM reporting.agg_daily_loan_calc GROUP BY 1,2,3 ORDER BY 3) dlc ON lo.application_uuid_value = dlc.loan_num
+  WHERE origination_funding_date < '2019-04-01'),
+  
+
+company_level_ownership AS (
+SELECT 
+  '_Company Level' AS profile_state, SUM(CASE WHEN asset_owner_uuid_value IS NULL THEN application_amount ELSE principal_balance END) AS amount, count(*) AS cnt, 
+  CASE
+    WHEN asset_owner_uuid_value = 'deadbeef-face-479b-860c-facefaceface' OR asset_owner_uuid_value IS NULL THEN 'LS010'
+    WHEN asset_owner_uuid_value IN ('33ebc05c-f000-43a3-83e3-8d413d7c8b66','2fe02699-c008-4716-99c5-a4ba2d075fba','3e576910-cc97-4f96-8d4a-7e193b3a75f8','f598fb02-807c-4d91-8146-df85edd20997','fdf442fb-dcf2-4f1e-b864-baafce8d045d','4ad8efa2-ab8a-4da1-9932-cbe4dc8169e2') THEN 'LS020'
+--     WHEN asset_owner_uuid_value = '3e576910-cc97-4f96-8d4a-7e193b3a75f8' THEN 'LS030'
+  END AS ac_type
+FROM
+  ts_conv tc
+JOIN (SELECT * FROM 
+                  (SELECT
+                     row_number() OVER(PARTITION BY loan_num ORDER BY kafka_timestamp) AS rnk,loan_num, asset_owner_uuid_value, principal_balance, calculation_date,origination_funding_date
+                   FROM
+                     reporting.agg_daily_loan_calc
+                   WHERE
+                    calculation_date = '2019-03-31'
+                    )t 
+                   WHERE rnk = 1
+                   order by loan_num,calculation_date ) dlc ON tc.application_uuid_value = dlc.loan_num
+
+GROUP BY 1,4), 
+
+company_level_delinquency AS (
+SELECT '_Company Level' AS profile_state, SUM(CASE WHEN asset_owner_uuid_value IS NULL THEN application_amount ELSE principal_balance END) AS amount, count(*) AS cnt, 
+CASE WHEN max_days_dq >=30 AND max_days_dq <=60 THEN 'LS210'
+     WHEN max_days_dq >=61 AND max_days_dq <=90 THEN 'LS220'
+     WHEN max_days_dq >=91 THEN 'LS230'
+     ELSE 'LS200' 
+     END AS ac_type FROM ts_conv tc
+JOIN (SELECT * FROM 
+                  (SELECT
+                     row_number() OVER(PARTITION BY loan_num ORDER BY kafka_timestamp) AS rnk,loan_num, asset_owner_uuid_value, principal_balance,max_days_dq
+                   FROM
+                     reporting.agg_daily_loan_calc
+                   WHERE
+                     calculation_date = '2019-03-31'
+                     )t 
+                   WHERE rnk = 1) dlc ON tc.application_uuid_value = dlc.loan_num
+
+GROUP BY 1,4)
+
+SELECT profile_state, amount, cnt, ac_type FROM company_level_ownership
+UNION ALL
+SELECT profile_state, amount, cnt, ac_type FROM company_level_delinquency
+
+
+
