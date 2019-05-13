@@ -93,7 +93,10 @@ ts_conv AS (
 SELECT * FROM ts_con),
 
 -- SELECT * FROM ts_conv 
--- WHERE funded_ts >= '2019-01-01 00:00:00'  AND funded_ts < '2019-04-01 00:00:00'  AND profile_state = 'IN'
+-- WHERE (((withdraw_ts >= '2019-01-01 00:00:00'  AND withdraw_ts < '2019-04-01 00:00:00') AND ana_ts IS NULL) AND funded_ts IS NULL OR application_uuid_value IN ('10428c41-4b19-4531-9e8c-074b727d516f')) AND profile_state = 'IN'
+-- -- OR (ana_ts IS NULL AND denied_ts IS NULL AND withdraw_ts IS NULL AND funded_ts IS NULL)
+-- Order by funded_ts 
+
 
 -- State Level Calculations for all the required fields
 state_level AS (
@@ -107,7 +110,7 @@ SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC030
 UNION ALL
 SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC040' AS ac_type FROM ts_conv WHERE  (denied_ts >= '2019-01-01 00:00:00'  AND denied_ts < '2019-04-01 00:00:00' ) AND withdraw_ts IS NULL AND (promo_code IS NULL) GROUP BY 1
 UNION ALL
-SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC050' AS ac_type FROM ts_conv WHERE  ((withdraw_ts >= '2019-01-01 00:00:00'  AND withdraw_ts < '2019-04-01 00:00:00') AND ana_ts IS NULL) AND funded_ts IS NULL GROUP BY 1
+SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC050' AS ac_type FROM ts_conv WHERE  (((withdraw_ts >= '2019-01-01 00:00:00'  AND withdraw_ts < '2019-04-01 00:00:00') AND ana_ts IS NULL) AND funded_ts IS NULL OR application_uuid_value IN ('10428c41-4b19-4531-9e8c-074b727d516f'))GROUP BY 1
 UNION ALL
 SELECT profile_state, SUM(application_amount) AS amount, count(*) AS cnt, 'AC062' AS ac_type FROM ts_conv WHERE  (denied_ts >= '2019-01-01 00:00:00'  AND denied_ts < '2019-04-01 00:00:00') AND withdraw_ts IS NULL AND (promo_code IS NOT NULL) GROUP BY 1
 UNION ALL
